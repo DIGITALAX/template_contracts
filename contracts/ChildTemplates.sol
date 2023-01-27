@@ -19,7 +19,7 @@ contract ChildTemplates is ERC1155, Ownable {
 
     mapping(uint256 => string) public tokenIdToURI;
     mapping(uint256 => ChildTemplate) public tokenIdToTemplate;
-    mapping()
+    mapping(uint256 => address) public tokenIdToOwner;
 
     event ChildTemplateCreated(uint256 indexed tokenId, string tokenURI);
 
@@ -49,7 +49,8 @@ contract ChildTemplates is ERC1155, Ownable {
         });
         _setURI(tokenIdPointer, tokenIdToURI[tokenIdPointer]);
         emit ChildTemplateCreated(tokenIdPointer, tokenIdToURI[tokenIdPointer]);
-        tokenIdPointer++;
+        tokenIdToOwner[tokenIdPointer] = msg.sender;
+        ++tokenIdPointer;
     }
 
     function mintBatch(
@@ -127,12 +128,16 @@ contract ChildTemplates is ERC1155, Ownable {
             );
     }
 
-    function tokenExists(uint256[] calldata _childTokenIds) public view {
-        for (uint256 i = _childTokenIds[0]; i <= _childTokenIds.length; i++) {
+    function tokenExists(uint256[] calldata _childTokenIds) external view {
+        for (uint256 i = _childTokenIds[0]; i <= _childTokenIds.length; ++i) {
             require(
                 _childTokenIds[i] <= tokenIdPointer,
                 "Token Id has not yet been minted"
             );
         }
+    }
+
+    function getTokenOwner(uint256 _tokenId) external view returns (address) {
+        return tokenIdToOwner[_tokenId];
     }
 }

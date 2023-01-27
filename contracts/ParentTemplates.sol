@@ -27,8 +27,8 @@ contract ParentTemplates is ERC721, Ownable {
 
     event TemplateCreated(uint indexed tokenId, string tokenURI);
 
-    modifier childTokensModifier() {
-        _verifyChildTokens();
+    modifier childTokensModifier(uint256[] calldata _childTokenIds) {
+        _verifyChildTokens(_childTokenIds);
         _;
     }
 
@@ -38,10 +38,10 @@ contract ParentTemplates is ERC721, Ownable {
     }
 
     function createTemplate(
-        string memory _svg,
-        uint256[] memory _childTokenIds,
-        string memory _name
-    ) external onlyOwner childTokensModifier {
+        string calldata _svg,
+        uint256[] calldata _childTokenIds,
+        string calldata _name
+    ) external onlyOwner childTokensModifier(_childTokenIds) {
         _safeMint(msg.sender, totalSupply);
         string memory imageURI = _templateDataFromSvg(_svg);
         tokenIdToTemplate[totalSupply] = Template({
@@ -64,7 +64,7 @@ contract ParentTemplates is ERC721, Ownable {
 
     function updateURI(
         uint256 _tokenId,
-        string memory _svg
+        string calldata _svg
     ) external onlyOwner {
         string memory imageURI = _templateDataFromSvg(_svg);
         tokenIdToURI[_tokenId] = _formatURI(
@@ -132,9 +132,32 @@ contract ParentTemplates is ERC721, Ownable {
         return parentToChild[_tokenId].length;
     }
 
-    function _verifyChildTokens(
-        uint256[] calldata _childTokenIds
-    ) internal returns (bool) {
+    function _verifyChildTokens(uint256[] memory _childTokenIds) internal view {
         ChildTemplates(childContract).tokenExists(_childTokenIds);
+        _verifyChildOwner(_childTokenIds);
+    }
+
+    function _verifyChildOwner(uint256[] memory _childTokenIds) internal view {
+        for (uint256 i = _childTokenIds[0]; i <= _childTokenIds.length; ++i) {
+            require(
+                ChildTemplates(childContract).getTokenOwner(
+                    _childTokenIds[i]
+                ) == msg.sender,
+                "Minter not owner of Child Ids"
+            );
+        }
+    }
+
+    function burnTemplate(
+        uint256 _tokenId,
+        uint256[] calldata _childTokenIds
+    ) external onlyOwner childTokensModifier(_childTokenIds) {
+        _burn(_tokenId);
+        // burn children as well
+        uint256[] memory amounts = new uint[](_childTokenIds.length);
+        for (uint i = 0; i < _childTokenIds.length; i++) {
+            amounts[i] = 1;
+        }
+        ChildTemplates(childContract).burnBatch(_childTokenIds, amounts);
     }
 }
