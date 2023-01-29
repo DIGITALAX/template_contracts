@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: UNLICENSE
+// @title: Child FGO
+// @version: 1.0.0
+// @author: Emma-Jane MacKinnon-Lee | DIGITALAX
 
 pragma solidity ^0.8.17;
 

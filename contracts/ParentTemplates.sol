@@ -9,6 +9,8 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Base64.sol";
 import "./ChildTemplates.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
+import "hardhat/console.sol";
 
 contract ParentTemplates is ERC721, Ownable {
     uint256 public totalSupply;
@@ -16,8 +18,8 @@ contract ParentTemplates is ERC721, Ownable {
 
     struct Template {
         string _name;
-        uint256 _tokenId;
-        string _svgData;
+        string _tokenId;
+        string _imageURI;
         uint256[] _childTokenIds;
     }
 
@@ -25,7 +27,7 @@ contract ParentTemplates is ERC721, Ownable {
     mapping(uint256 => string) public tokenIdToURI;
     mapping(uint256 => Template) public tokenIdToTemplate;
 
-    event TemplateCreated(uint indexed tokenId, string tokenURI);
+    event ParentTemplateCreated(uint indexed tokenId, string tokenURI);
 
     modifier childTokensModifier(uint256[] calldata _childTokenIds) {
         _verifyChildTokens(_childTokenIds);
@@ -42,12 +44,13 @@ contract ParentTemplates is ERC721, Ownable {
         uint256[] calldata _childTokenIds,
         string calldata _name
     ) external onlyOwner childTokensModifier(_childTokenIds) {
+        ++totalSupply;
         _safeMint(msg.sender, totalSupply);
         string memory imageURI = _templateDataFromSvg(_svg);
         tokenIdToTemplate[totalSupply] = Template({
             _name: _name,
-            _tokenId: totalSupply,
-            _svgData: imageURI,
+            _tokenId: Strings.toString(totalSupply),
+            _imageURI: imageURI,
             _childTokenIds: _childTokenIds
         });
         tokenIdToURI[totalSupply] = _formatURI(
@@ -57,9 +60,8 @@ contract ParentTemplates is ERC721, Ownable {
             totalSupply
         );
         parentToChild[totalSupply] = _childTokenIds;
-        ++totalSupply;
 
-        emit TemplateCreated(totalSupply - 1, tokenIdToURI[totalSupply]);
+        emit ParentTemplateCreated(totalSupply, tokenIdToURI[totalSupply]);
     }
 
     function updateURI(
@@ -101,7 +103,7 @@ contract ParentTemplates is ERC721, Ownable {
                                 '{ "name": "',
                                 _name,
                                 '", "tokenId": "',
-                                _tokenId,
+                                Strings.toString(_tokenId),
                                 '", "svgData": "',
                                 _imageURI,
                                 '", "childTokenIds": "',
@@ -134,18 +136,6 @@ contract ParentTemplates is ERC721, Ownable {
 
     function _verifyChildTokens(uint256[] memory _childTokenIds) internal view {
         ChildTemplates(childContract).tokenExists(_childTokenIds);
-        _verifyChildOwner(_childTokenIds);
-    }
-
-    function _verifyChildOwner(uint256[] memory _childTokenIds) internal view {
-        for (uint256 i = _childTokenIds[0]; i <= _childTokenIds.length; ++i) {
-            require(
-                ChildTemplates(childContract).getTokenOwner(
-                    _childTokenIds[i]
-                ) == msg.sender,
-                "Minter not owner of Child Ids"
-            );
-        }
     }
 
     function burnTemplate(

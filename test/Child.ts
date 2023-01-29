@@ -3,11 +3,11 @@ import { ethers } from "hardhat";
 import { formatURI, imageURI, svg } from "../lib/constants";
 
 describe("Child FGO Test Suite", () => {
-  let deployer: any, child: any, second: any, _na: any;
+  let deployer: any, child: any, second: any;
   beforeEach("deploy Contracts", async () => {
-    [_na, deployer, second] = await ethers.getSigners();
+    [deployer, second] = await ethers.getSigners();
     const Child = await ethers.getContractFactory("ChildTemplates");
-    child = await Child.connect(deployer).deploy("ChildTemplates", "CFGO");
+    child = await Child.deploy("ChildTemplates", "CFGO");
   });
 
   describe("constructor", () => {
