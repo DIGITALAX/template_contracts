@@ -1,8 +1,8 @@
-const { ethers } = require("hardhat");
-const { expect } = require("chai");
+import { expect } from "chai";
+import {ethers} from "hardhat";
 
 describe("Parent FGO Test Suite", () => {
-  let parent;
+  let parent: any, child: any;
   beforeEach("deploy Contracts", async () => {
     const Parent = await ethers.getContractFactory("ParentTemplates");
     parent = await Parent.deploy();

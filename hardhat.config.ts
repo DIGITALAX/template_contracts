@@ -1,6 +1,6 @@
 require("@nomicfoundation/hardhat-toolbox");
 require("dotenv").config({ path: ".env" });
-require("@nomiclabs/hardhat-waffle");
+import '@nomiclabs/hardhat-ethers'
 
 const privateKeys = process.env.PRIVATE_KEYS || "";
 
