@@ -6,15 +6,14 @@
 pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Base64.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "./ParentTemplates.sol";
-import "hardhat/console.sol";
 
 contract ChildTemplates is ERC1155, Ownable {
     string public name;
     string public symbol;
+    address public deployer;
     uint256 public tokenIdPointer;
     address public parentContract;
 
@@ -28,8 +27,8 @@ contract ChildTemplates is ERC1155, Ownable {
     mapping(uint256 => string) public tokenIdToURI;
     mapping(uint256 => ChildTemplate) public tokenIdToTemplate;
     mapping(uint256 => address) public tokenIdToOwner;
-    mapping(uint256 => uint256) public tokenIdToAmount;
     mapping(uint256 => bool) internal _arrayOneMap;
+    mapping(uint256 => uint256) public tokenIdToAmount;
 
     event ChildTemplateCreated(uint256 indexed tokenId, string tokenURI);
 
@@ -42,6 +41,7 @@ contract ChildTemplates is ERC1155, Ownable {
         name = _name;
         symbol = _symbol;
         tokenIdPointer = 0;
+        deployer = msg.sender;
     }
 
     function mint(
@@ -49,7 +49,8 @@ contract ChildTemplates is ERC1155, Ownable {
         uint256 _amount,
         string calldata _svg,
         string calldata _name
-    ) public onlyOwner {
+    ) public {
+        require(msg.sender == deployer, "Only Owner can mint");
         require(parentContract != address(0), "Add parent contract");
         ++tokenIdPointer;
         _mint(_to, tokenIdPointer, _amount, "");
@@ -66,9 +67,9 @@ contract ChildTemplates is ERC1155, Ownable {
             _imageURI: imageURI,
             _amount: _amount
         });
-        tokenIdToAmount[tokenIdPointer] = _amount;
         _setURI(tokenIdPointer, tokenIdToURI[tokenIdPointer]);
         tokenIdToOwner[tokenIdPointer] = msg.sender;
+        tokenIdToAmount[tokenIdPointer] = _amount;
         emit ChildTemplateCreated(tokenIdPointer, tokenIdToURI[tokenIdPointer]);
     }
 
@@ -77,7 +78,8 @@ contract ChildTemplates is ERC1155, Ownable {
         uint256[] calldata _amounts,
         string[] calldata _svgs,
         string[] calldata _names
-    ) public onlyOwner {
+    ) public {
+        require(msg.sender == deployer, "Only Owner can mint");
         require(
             _names.length == _svgs.length &&
                 _names.length == _amounts.length &&
@@ -85,11 +87,8 @@ contract ChildTemplates is ERC1155, Ownable {
             "All arrays must be the same length"
         );
         uint256[] memory _ids = new uint[](_names.length);
-        for (uint i = 0; i < _names.length; i++) {
-            _ids[i] = ++tokenIdPointer;
-        }
-        _mintBatch(_to, _ids, _amounts, "");
         for (uint i = 0; i < _ids.length; i++) {
+            _ids[i] = ++tokenIdPointer;
             string memory imageURI = _templateDataFromSvg(_svgs[i]);
             tokenIdToURI[tokenIdPointer] = _formatURI(
                 imageURI,
@@ -103,14 +102,18 @@ contract ChildTemplates is ERC1155, Ownable {
                 _imageURI: imageURI,
                 _amount: _amounts[i]
             });
+            tokenIdToAmount[tokenIdPointer] = _amounts[i];
             _setURI(_ids[i], tokenIdToURI[tokenIdPointer]);
             tokenIdToOwner[_ids[i]] = msg.sender;
         }
+        _mintBatch(_to, _ids, _amounts, "");
     }
 
-    function burn(uint256 _id, uint256 _amount) public onlyOwner {
+    function burn(uint256 _id, uint256 _amount) public {
+        require(msg.sender == deployer, "Only Owner can burn");
         delete tokenIdToTemplate[_id];
         delete tokenIdToURI[_id];
+        delete tokenIdToAmount[_id];
         tokenIdToOwner[_id] = address(0);
         _burn(msg.sender, _id, _amount);
     }
@@ -123,6 +126,7 @@ contract ChildTemplates is ERC1155, Ownable {
         for (uint256 i = 0; i < _ids.length; i++) {
             delete tokenIdToTemplate[_ids[i]];
             delete tokenIdToURI[_ids[i]];
+            delete tokenIdToAmount[_ids[i]];
             tokenIdToOwner[_ids[i]] = address(0);
         }
         _burnBatch(msg.sender, _ids, _amounts);
@@ -134,17 +138,19 @@ contract ChildTemplates is ERC1155, Ownable {
         uint256[] calldata _burnAmounts,
         uint256[] calldata _mintIds,
         uint256[] calldata _mintAmounts
-    ) external onlyOwner {
+    ) external {
+        require(msg.sender == deployer, "Only Owner can burn and mint");
         for (uint256 i = 0; i < _burnIds.length; i++) {
             delete tokenIdToTemplate[_burnIds[i]];
             delete tokenIdToURI[_burnIds[i]];
+            delete tokenIdToAmount[_burnIds[i]];
             tokenIdToOwner[_burnIds[i]] = address(0);
         }
         _burnBatch(_from, _burnIds, _burnAmounts);
         _mintBatch(_from, _mintIds, _mintAmounts, "");
     }
 
-    function _setURI(uint256 _id, string memory _uri) internal onlyOwner {
+    function _setURI(uint256 _id, string memory _uri) internal {
         tokenIdToURI[_id] = _uri;
         emit URI(_uri, _id);
     }
@@ -216,13 +222,13 @@ contract ChildTemplates is ERC1155, Ownable {
         return tokenIdToOwner[_tokenId];
     }
 
-    function _safeTransferFrom(
+    function safeTransferFrom(
         address _from,
         address _to,
         uint256 _id,
         uint256 _amount,
         bytes memory _data
-    ) internal override {
+    ) public override {
         require(
             _from == msg.sender && tokenIdToOwner[_id] == _from,
             "ERC1155: caller is not token owner or approved"
@@ -231,14 +237,14 @@ contract ChildTemplates is ERC1155, Ownable {
         _safeTransferFrom(_from, _to, _id, _amount, _data);
     }
 
-    function _safeBatchTransferFrom(
+    function safeBatchTransferFrom(
         address _from,
         address _to,
         uint256[] memory _ids,
         uint256[] memory _amounts,
         bytes memory _data,
         uint256 _parentId
-    ) internal IsParent(_parentId, _ids) {
+    ) external IsParent(_parentId, _ids) {
         // parent check only
         for (uint256 i = 0; i < _ids.length; i++) {
             require(

@@ -1,6 +1,6 @@
 require("@nomicfoundation/hardhat-toolbox");
 require("dotenv").config({ path: ".env" });
-import '@nomiclabs/hardhat-ethers'
+import "@nomiclabs/hardhat-ethers";
 
 const privateKeys = process.env.PRIVATE_KEYS || "";
 
@@ -31,5 +31,8 @@ module.exports = {
       url: `https://polygon-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_POLYGON_KEY}`,
       accounts: privateKeys.split(","),
     },
+  },
+  settings: {
+    optimizer: { enabled: true, runs: 200, details: { yul: false } },
   },
 };

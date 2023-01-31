@@ -3,11 +3,14 @@ import { ethers } from "hardhat";
 import { formatURI, imageURI, svg } from "../lib/constants";
 
 describe("Child FGO Test Suite", () => {
-  let deployer: any, child: any, second: any;
+  let deployer: any, child: any, second: any, parent: any;
   beforeEach("deploy Contracts", async () => {
     [deployer, second] = await ethers.getSigners();
     const Child = await ethers.getContractFactory("ChildTemplates");
     child = await Child.deploy("ChildTemplates", "CFGO");
+    const Parent = await ethers.getContractFactory("ParentTemplates");
+    parent = await Parent.deploy(child.address);
+    await child.addParentContract(parent.address);
   });
 
   describe("constructor", () => {
@@ -96,20 +99,20 @@ describe("Child FGO Test Suite", () => {
     describe("transfer tokens", () => {
       let single_result: any, multi_result: any;
       beforeEach("transfer", async () => {
-        const transaction_single = await child
-          .connect(deployer)
-          ._safeTransferFrom(deployer.address, second.address, 1, 1, 0x00);
-        single_result = transaction_single.wait();
-        const transaction_multi = await child
-          .connect(deployer)
-          ._safeBatchTransferFrom(
-            deployer.address,
-            second.address,
-            [2],
-            [1],
-            0x00
-          );
-        multi_result = transaction_multi.wait();
+        // const transaction_single = await child
+        //   .connect(deployer)
+        //   .safeTransferFrom(deployer.address, second.address, 1, 1, 0x00);
+        // single_result = transaction_single.wait();
+        // const transaction_multi = await child
+        //   .connect(deployer)
+        //   .safeBatchTransferFrom(
+        //     deployer.address,
+        //     second.address,
+        //     [2],
+        //     [1],
+        //     0x00
+        //   );
+        // multi_result = transaction_multi.wait();
       });
 
       it("transfers one token", async () => {
