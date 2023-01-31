@@ -53,6 +53,10 @@ describe("Child FGO Test Suite", () => {
         expect(await child.tokenIdPointer()).to.equal(2);
       });
 
+      it("has an amount of 1", async () => {
+        expect(await child.tokenIdToAmount(1)).to.equal(1);
+      });
+
       it("token exists", async () => {
         expect(await child.tokenExists([1])).to.equal(true);
       });
@@ -62,11 +66,18 @@ describe("Child FGO Test Suite", () => {
           _name,
           _tokenId,
           _imageURI,
-        }: { _name: string; _tokenId: string; _imageURI: string } = {
+          _amount,
+        }: {
+          _name: string;
+          _tokenId: string;
+          _imageURI: string;
+          _amount: string;
+        } = {
           ...(await child.tokenIdToTemplate(1)),
         };
 
         expect(_name).to.equal("leftArm");
+        expect(_amount).to.equal(String(1));
         expect(_tokenId).to.equal(String(1));
         expect(_imageURI).to.equal(imageURI);
       });
@@ -87,11 +98,11 @@ describe("Child FGO Test Suite", () => {
       beforeEach("transfer", async () => {
         const transaction_single = await child
           .connect(deployer)
-          .safeTransferFrom(deployer.address, second.address, 1, 1, 0x00);
+          ._safeTransferFrom(deployer.address, second.address, 1, 1, 0x00);
         single_result = transaction_single.wait();
         const transaction_multi = await child
           .connect(deployer)
-          .safeBatchTransferFrom(
+          ._safeBatchTransferFrom(
             deployer.address,
             second.address,
             [2],
@@ -131,11 +142,11 @@ describe("Child FGO Test Suite", () => {
     describe("burn tokens", () => {
       let single_result: any, multi_result: any;
       beforeEach("burn", async () => {
-        const transaction_single = await child.connect(deployer).burn(1, 1);
+        const transaction_single = await child.connect(deployer)._burn(1, 1);
         single_result = transaction_single.wait();
         const transaction_multi = await child
           .connect(deployer)
-          .burnBatch([2], [1]);
+          ._burnBatch([2], [1]);
         multi_result = transaction_multi.wait();
       });
 

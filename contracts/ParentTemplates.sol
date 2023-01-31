@@ -8,9 +8,8 @@ pragma solidity ^0.8.17;
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Base64.sol";
-import "./ChildTemplates.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
-import "hardhat/console.sol";
+import "./ChildTemplates.sol";
 
 contract ParentTemplates is ERC721, Ownable {
     uint256 public totalSupply;
@@ -18,7 +17,7 @@ contract ParentTemplates is ERC721, Ownable {
 
     struct Template {
         string _name;
-        string _tokenId;
+        uint256 _tokenId;
         string _imageURI;
         uint256[] _childTokenIds;
     }
@@ -26,6 +25,7 @@ contract ParentTemplates is ERC721, Ownable {
     mapping(uint256 => uint256[]) public parentToChild;
     mapping(uint256 => string) public tokenIdToURI;
     mapping(uint256 => Template) public tokenIdToTemplate;
+    mapping(uint256 => address) public tokenIdToOwner;
 
     event ParentTemplateCreated(uint indexed tokenId, string tokenURI);
 
@@ -43,13 +43,13 @@ contract ParentTemplates is ERC721, Ownable {
         string calldata _svg,
         uint256[] calldata _childTokenIds,
         string calldata _name
-    ) external onlyOwner childTokensModifier(_childTokenIds) {
+    ) public onlyOwner childTokensModifier(_childTokenIds) {
         ++totalSupply;
         _safeMint(msg.sender, totalSupply);
         string memory imageURI = _templateDataFromSvg(_svg);
         tokenIdToTemplate[totalSupply] = Template({
             _name: _name,
-            _tokenId: Strings.toString(totalSupply),
+            _tokenId: totalSupply,
             _imageURI: imageURI,
             _childTokenIds: _childTokenIds
         });
@@ -59,15 +59,13 @@ contract ParentTemplates is ERC721, Ownable {
             _childTokenIds,
             totalSupply
         );
+        tokenIdToOwner[totalSupply] = msg.sender;
         parentToChild[totalSupply] = _childTokenIds;
-
         emit ParentTemplateCreated(totalSupply, tokenIdToURI[totalSupply]);
     }
 
-    function updateURI(
-        uint256 _tokenId,
-        string calldata _svg
-    ) external onlyOwner {
+    function updateSvg(uint256 _tokenId, string calldata _svg) public {
+        require(msg.sender == tokenIdToOwner[_tokenId], "Not token owner");
         string memory imageURI = _templateDataFromSvg(_svg);
         tokenIdToURI[_tokenId] = _formatURI(
             imageURI,
@@ -75,6 +73,12 @@ contract ParentTemplates is ERC721, Ownable {
             tokenIdToTemplate[_tokenId]._childTokenIds,
             _tokenId
         );
+        tokenIdToTemplate[totalSupply] = Template({
+            _name: tokenIdToTemplate[_tokenId]._name,
+            _tokenId: _tokenId,
+            _imageURI: imageURI,
+            _childTokenIds: tokenIdToTemplate[_tokenId]._childTokenIds
+        });
     }
 
     function _templateDataFromSvg(
@@ -93,6 +97,23 @@ contract ParentTemplates is ERC721, Ownable {
         uint256[] memory _childTokenIds,
         uint256 _tokenId
     ) internal pure returns (string memory) {
+        string memory _stringChildTokenIds;
+        for (uint256 i = 0; i < _childTokenIds.length - 1; i++) {
+            _stringChildTokenIds = string.concat(
+                _stringChildTokenIds,
+                " ",
+                Strings.toString(_childTokenIds[i]),
+                ", "
+            );
+        }
+        _stringChildTokenIds = string(
+            abi.encodePacked(
+                "[",
+                _stringChildTokenIds,
+                Strings.toString(_childTokenIds[_childTokenIds.length - 1]),
+                " ]"
+            )
+        );
         return
             string(
                 abi.encodePacked(
@@ -107,7 +128,7 @@ contract ParentTemplates is ERC721, Ownable {
                                 '", "svgData": "',
                                 _imageURI,
                                 '", "childTokenIds": "',
-                                _childTokenIds,
+                                _stringChildTokenIds,
                                 '" }'
                             )
                         )
@@ -141,13 +162,109 @@ contract ParentTemplates is ERC721, Ownable {
     function burnTemplate(
         uint256 _tokenId,
         uint256[] calldata _childTokenIds
-    ) external onlyOwner childTokensModifier(_childTokenIds) {
+    ) public onlyOwner childTokensModifier(_childTokenIds) {
         _burn(_tokenId);
         // burn children as well
         uint256[] memory amounts = new uint[](_childTokenIds.length);
         for (uint i = 0; i < _childTokenIds.length; i++) {
             amounts[i] = 1;
         }
-        ChildTemplates(childContract).burnBatch(_childTokenIds, amounts);
+        ChildTemplates(childContract).burnBatch(
+            _childTokenIds,
+            amounts,
+            _tokenId
+        );
+    }
+
+    function transferFrom(
+        address from,
+        address to,
+        uint256 tokenId
+    ) public virtual override {
+        require(
+            _isApprovedOrOwner(_msgSender(), tokenId),
+            "ERC721: caller is not token owner or approved"
+        );
+
+        _transfer(from, to, tokenId);
+
+        tokenIdToOwner[totalSupply] = to;
+
+        uint256[] memory childTokens = parentToChild[tokenId];
+        uint256[] memory childAmounts = new uint[](
+            parentToChild[tokenId].length
+        );
+        for (uint256 i = 0; i < childTokens.length; i++) {
+            childAmounts[i] = ChildTemplates(childContract).tokenIdToAmount(
+                childTokens[i]
+            );
+        }
+
+        ChildTemplates(childContract).safeBatchTransferFrom(
+            from,
+            to,
+            childTokens,
+            childAmounts,
+            ""
+        );
+    }
+
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 tokenId
+    ) public virtual override {
+        safeTransferFrom(from, to, tokenId, "");
+        tokenIdToOwner[totalSupply] = to;
+
+        uint256[] memory childTokens = parentToChild[tokenId];
+        uint256[] memory childAmounts = new uint[](
+            parentToChild[tokenId].length
+        );
+        for (uint256 i = 0; i < childTokens.length; i++) {
+            childAmounts[i] = ChildTemplates(childContract).tokenIdToAmount(
+                childTokens[i]
+            );
+        }
+
+        ChildTemplates(childContract).safeBatchTransferFrom(
+            from,
+            to,
+            childTokens,
+            childAmounts,
+            ""
+        );
+    }
+
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 tokenId,
+        bytes memory data
+    ) public virtual override {
+        require(
+            _isApprovedOrOwner(_msgSender(), tokenId),
+            "ERC721: caller is not token owner or approved"
+        );
+        _safeTransfer(from, to, tokenId, data);
+        tokenIdToOwner[totalSupply] = to;
+
+        uint256[] memory childTokens = parentToChild[tokenId];
+        uint256[] memory childAmounts = new uint[](
+            parentToChild[tokenId].length
+        );
+        for (uint256 i = 0; i < childTokens.length; i++) {
+            childAmounts[i] = ChildTemplates(childContract).tokenIdToAmount(
+                childTokens[i]
+            );
+        }
+
+        ChildTemplates(childContract).safeBatchTransferFrom(
+            from,
+            to,
+            childTokens,
+            childAmounts,
+            ""
+        );
     }
 }
