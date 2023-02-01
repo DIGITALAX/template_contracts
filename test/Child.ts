@@ -3,14 +3,11 @@ import { ethers } from "hardhat";
 import { formatURI, imageURI, svg } from "../lib/constants";
 
 describe("Child FGO Test Suite", () => {
-  let deployer: any, child: any, second: any, parent: any;
+  let deployer: any, child: any, second: any;
   beforeEach("deploy Contracts", async () => {
     [deployer, second] = await ethers.getSigners();
     const Child = await ethers.getContractFactory("ChildTemplates");
     child = await Child.deploy("ChildTemplates", "CFGO");
-    const Parent = await ethers.getContractFactory("ParentTemplates");
-    parent = await Parent.deploy(child.address);
-    await child.addParentContract(parent.address);
   });
 
   describe("constructor", () => {
@@ -56,10 +53,6 @@ describe("Child FGO Test Suite", () => {
         expect(await child.tokenIdPointer()).to.equal(2);
       });
 
-      it("has an amount of 1", async () => {
-        expect(await child.tokenIdToAmount(1)).to.equal(1);
-      });
-
       it("token exists", async () => {
         expect(await child.tokenExists([1])).to.equal(true);
       });
@@ -99,20 +92,20 @@ describe("Child FGO Test Suite", () => {
     describe("transfer tokens", () => {
       let single_result: any, multi_result: any;
       beforeEach("transfer", async () => {
-        // const transaction_single = await child
-        //   .connect(deployer)
-        //   .safeTransferFrom(deployer.address, second.address, 1, 1, 0x00);
-        // single_result = transaction_single.wait();
-        // const transaction_multi = await child
-        //   .connect(deployer)
-        //   .safeBatchTransferFrom(
-        //     deployer.address,
-        //     second.address,
-        //     [2],
-        //     [1],
-        //     0x00
-        //   );
-        // multi_result = transaction_multi.wait();
+        const transaction_single = await child
+          .connect(deployer)
+          .safeTransferFrom(deployer.address, second.address, 1, 1, 0x00);
+        single_result = transaction_single.wait();
+        const transaction_multi = await child
+          .connect(deployer)
+          .safeBatchTransferFrom(
+            deployer.address,
+            second.address,
+            [2],
+            [1],
+            0x00
+          );
+        multi_result = transaction_multi.wait();
       });
 
       it("transfers one token", async () => {
@@ -145,11 +138,11 @@ describe("Child FGO Test Suite", () => {
     describe("burn tokens", () => {
       let single_result: any, multi_result: any;
       beforeEach("burn", async () => {
-        const transaction_single = await child.connect(deployer)._burn(1, 1);
+        const transaction_single = await child.connect(deployer).burn(1, 1);
         single_result = transaction_single.wait();
         const transaction_multi = await child
           .connect(deployer)
-          ._burnBatch([2], [1]);
+          .burnBatch([2], [1]);
         multi_result = transaction_multi.wait();
       });
 

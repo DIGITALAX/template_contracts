@@ -115,126 +115,102 @@ describe("Parent FGO Test Suite", () => {
       });
     });
 
-    describe("transfer tokens from", () => {
-      let result: any;
-      beforeEach("transfer the tokens", async () => {
-        const transaction_single = await parent.transferFrom(
-          deployer.address,
-          second.address,
-          1
-        );
-        result = transaction_single.wait();
+    describe("approval", () => {
+      beforeEach("approve for child transfer", async () => {
+        await child.connect(deployer).setApprovalForAll(parent.address, true);
       });
-      
-      it("transfers one token", async () => {
-        (expect(result).to as any)
-          .emit("Transfer")
-          .withArgs(deployer.address, second.address, 1);
 
-        (expect(result).to as any)
-          .emit("TransferBatch")
-          .withArgs(
-            deployer.address,
-            deployer.address,
-            second.address,
-            [1, 2],
-            [1]
+      describe("transfer tokens from", () => {
+        let result: any;
+        beforeEach("transfer the tokens", async () => {
+          const transaction_single = await parent
+            .connect(deployer)
+            .transferFrom(deployer.address, second.address, 1);
+          result = transaction_single.wait();
+        });
+
+        it("transfers one token", async () => {
+          (expect(result).to as any)
+            .emit("Transfer")
+            .withArgs(deployer.address, second.address, 1);
+
+          (expect(result).to as any)
+            .emit("TransferBatch")
+            .withArgs(
+              deployer.address,
+              deployer.address,
+              second.address,
+              [1, 2],
+              [1]
+            );
+        });
+
+        it("has a new owner", async () => {
+          expect(await parent.tokenIdToOwner(1)).to.equal(second.address);
+        });
+
+        it("child tokens new owner", async () => {
+          expect(await child.tokenIdToOwner(1)).to.equal(second.address);
+          expect(await child.tokenIdToOwner(2)).to.equal(second.address);
+        });
+      });
+
+      describe("only owner can transfer", () => {
+        it("rejects a non owner", async () => {
+          await (
+            expect(
+              parent
+                .connect(second)
+                .transferFrom(deployer.address, second.address, 1)
+            ).to.be as any
+          ).revertedWith("ERC721: caller is not token owner or approved");
+        });
+      });
+
+      describe("burn tokens", () => {
+        let result: any;
+        beforeEach("burn a token", async () => {
+          await child.isApprovedForAll(deployer.address, parent.address);
+          const transaction = await parent.burnTemplate(1, [1, 2], [1, 1]);
+          result = transaction.wait();
+        });
+
+        it("emits burn transfer", async () => {
+          (expect(result).to as any)
+            .emit("Transfer")
+            .withArgs(deployer.address, "0x" + "0".repeat(40), 1);
+
+          (expect(result).to as any)
+            .emit("TransferBatch")
+            .withArgs(
+              deployer.address,
+              deployer.address,
+              0x0000000000000000000000000000000000000000,
+              [2],
+              [1]
+            );
+        });
+
+        it("has a new 0 address owner", async () => {
+          expect(await parent.tokenIdToOwner(1)).to.equal(
+            "0x" + "0".repeat(40)
           );
+        });
+
+        it("child tokens new 0 address owner", async () => {
+          expect(await child.tokenIdToOwner(1)).to.equal("0x" + "0".repeat(40));
+          expect(await child.tokenIdToOwner(2)).to.equal("0x" + "0".repeat(40));
+        });
       });
 
-      it("has a new owner", async () => {
-        expect(await parent.tokenIdToOwner(1)).to.equal(second.address);
+      describe("only owner can burn", () => {
+        it("reverts non-owner", async () => {
+          await (
+            expect(parent.connect(second).burnTemplate(1, [1, 2], [1, 1]))
+              .to.be as any
+          ).revertedWith("Ownable: caller is not the owner");
+        });
       });
-
-      it("child tokens new owner", async () => {
-        expect(await child.tokenIdToOwner(1).to.equal(second.address));
-        expect(await child.tokenIdToOwner(2).to.equal(second.address));
-      });
-    });
-
-    describe("transfer tokens safe", () => {
-      let result: any;
-      beforeEach("transfer the tokens safe", async () => {
-        const transaction_single = await parent.safeTransferFrom(
-          deployer.address,
-          second.address,
-          1
-        );
-        result = transaction_single.wait();
-      });
-
-      it("safe transfer token", async () => {
-        (expect(result).to as any)
-          .emit("Transfer")
-          .withArgs(deployer.address, second.address, 1);
-
-        (expect(result).to as any)
-          .emit("TransferBatch")
-          .withArgs(
-            deployer.address,
-            deployer.address,
-            second.address,
-            [1, 2],
-            [1]
-          );
-      });
-
-      it("has a new owner safe", async () => {
-        expect(await parent.tokenIdToOwner(1)).to.equal(second.address);
-      });
-
-      it("child tokens new owner safe", async () => {
-        expect(await child.tokenIdToOwner(1).to.equal(second.address));
-        expect(await child.tokenIdToOwner(2).to.equal(second.address));
-      });
-    });
-
-    describe("transfer tokens data", () => {
-      let result: any;
-      beforeEach("transfer the tokens data", async () => {
-        const transaction_single = await parent.safeTransferFrom(
-          deployer.address,
-          second.address,
-          1,
-          ""
-        );
-        result = transaction_single.wait();
-      });
-
-      it("data transfer token", async () => {
-        (expect(result).to as any)
-          .emit("Transfer")
-          .withArgs(deployer.address, second.address, 1);
-
-        (expect(result).to as any)
-          .emit("TransferBatch")
-          .withArgs(
-            deployer.address,
-            deployer.address,
-            second.address,
-            [1, 2],
-            [1]
-          );
-      });
-
-      it("has a new owner data", async () => {
-        expect(await parent.tokenIdToOwner(1)).to.equal(second.address);
-      });
-
-      it("child tokens new owner data", async () => {
-        expect(await child.tokenIdToOwner(1).to.equal(second.address));
-        expect(await child.tokenIdToOwner(2).to.equal(second.address));
-      });
-    });
-
-    describe("only owner can transfer", async () => {});
-
-    describe("only owner can burn", async () => {});
-
-    describe("burn tokens", () => {
-      xit("burns one token", async () => {});
-
-      xit("batch burns tokens", async () => {});
     });
   });
 });

@@ -35,4 +35,7 @@ module.exports = {
   settings: {
     optimizer: { enabled: true, runs: 200, details: { yul: false } },
   },
+  etherscan: {
+    apiKey: process.env.ETHERSCAN_API_KEY,
+  },
 };

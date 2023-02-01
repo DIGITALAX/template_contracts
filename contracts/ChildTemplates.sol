@@ -7,15 +7,14 @@ pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/utils/Base64.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
-import "./ParentTemplates.sol";
+import "hardhat/console.sol";
 
 contract ChildTemplates is ERC1155, Ownable {
     string public name;
     string public symbol;
-    address public deployer;
     uint256 public tokenIdPointer;
-    address public parentContract;
 
     struct ChildTemplate {
         string _name;
@@ -32,16 +31,10 @@ contract ChildTemplates is ERC1155, Ownable {
 
     event ChildTemplateCreated(uint256 indexed tokenId, string tokenURI);
 
-    modifier IsParent(uint256 _parentId, uint256[] memory _childTokenIds) {
-        _checkParent(_parentId, _childTokenIds);
-        _;
-    }
-
     constructor(string memory _name, string memory _symbol) ERC1155("") {
         name = _name;
         symbol = _symbol;
         tokenIdPointer = 0;
-        deployer = msg.sender;
     }
 
     function mint(
@@ -49,9 +42,7 @@ contract ChildTemplates is ERC1155, Ownable {
         uint256 _amount,
         string calldata _svg,
         string calldata _name
-    ) public {
-        require(msg.sender == deployer, "Only Owner can mint");
-        require(parentContract != address(0), "Add parent contract");
+    ) public onlyOwner {
         ++tokenIdPointer;
         _mint(_to, tokenIdPointer, _amount, "");
         string memory imageURI = _templateDataFromSvg(_svg);
@@ -78,8 +69,7 @@ contract ChildTemplates is ERC1155, Ownable {
         uint256[] calldata _amounts,
         string[] calldata _svgs,
         string[] calldata _names
-    ) public {
-        require(msg.sender == deployer, "Only Owner can mint");
+    ) public onlyOwner {
         require(
             _names.length == _svgs.length &&
                 _names.length == _amounts.length &&
@@ -102,34 +92,39 @@ contract ChildTemplates is ERC1155, Ownable {
                 _imageURI: imageURI,
                 _amount: _amounts[i]
             });
-            tokenIdToAmount[tokenIdPointer] = _amounts[i];
             _setURI(_ids[i], tokenIdToURI[tokenIdPointer]);
             tokenIdToOwner[_ids[i]] = msg.sender;
+            tokenIdToAmount[_ids[i]] = _amounts[i];
         }
         _mintBatch(_to, _ids, _amounts, "");
     }
 
-    function burn(uint256 _id, uint256 _amount) public {
-        require(msg.sender == deployer, "Only Owner can burn");
+    function burn(uint256 _id, uint256 _amount) public onlyOwner {
         delete tokenIdToTemplate[_id];
         delete tokenIdToURI[_id];
-        delete tokenIdToAmount[_id];
         tokenIdToOwner[_id] = address(0);
+        tokenIdToAmount[_id] = 0;
         _burn(msg.sender, _id, _amount);
     }
 
     function burnBatch(
         uint256[] calldata _ids,
-        uint256[] calldata _amounts,
-        uint256 _parentId
-    ) external IsParent(_parentId, _ids) {
+        uint256[] calldata _amounts
+    ) external {
+        for (uint i = 0; i < _ids.length; i++) {
+            require(
+                (msg.sender == tokenIdToOwner[_ids[i]]) ||
+                    isApprovedForAll(owner(), msg.sender),
+                "ERC1155: caller is not token owner or approved"
+            );
+        }
+        _burnBatch(owner(), _ids, _amounts);
         for (uint256 i = 0; i < _ids.length; i++) {
             delete tokenIdToTemplate[_ids[i]];
             delete tokenIdToURI[_ids[i]];
-            delete tokenIdToAmount[_ids[i]];
             tokenIdToOwner[_ids[i]] = address(0);
+            tokenIdToAmount[_ids[i]] = 0;
         }
-        _burnBatch(msg.sender, _ids, _amounts);
     }
 
     function _burnForMint(
@@ -138,13 +133,12 @@ contract ChildTemplates is ERC1155, Ownable {
         uint256[] calldata _burnAmounts,
         uint256[] calldata _mintIds,
         uint256[] calldata _mintAmounts
-    ) external {
-        require(msg.sender == deployer, "Only Owner can burn and mint");
+    ) external onlyOwner {
         for (uint256 i = 0; i < _burnIds.length; i++) {
             delete tokenIdToTemplate[_burnIds[i]];
             delete tokenIdToURI[_burnIds[i]];
-            delete tokenIdToAmount[_burnIds[i]];
             tokenIdToOwner[_burnIds[i]] = address(0);
+            tokenIdToAmount[_burnIds[i]] = 0;
         }
         _burnBatch(_from, _burnIds, _burnAmounts);
         _mintBatch(_from, _mintIds, _mintAmounts, "");
@@ -211,13 +205,6 @@ contract ChildTemplates is ERC1155, Ownable {
         return true;
     }
 
-    function addParentContract(
-        address _parentContract
-    ) public returns (bool sucess) {
-        parentContract = _parentContract;
-        return true;
-    }
-
     function getTokenOwner(uint256 _tokenId) external view returns (address) {
         return tokenIdToOwner[_tokenId];
     }
@@ -230,7 +217,8 @@ contract ChildTemplates is ERC1155, Ownable {
         bytes memory _data
     ) public override {
         require(
-            _from == msg.sender && tokenIdToOwner[_id] == _from,
+            (_from == msg.sender && tokenIdToOwner[_id] == _from) ||
+                isApprovedForAll(owner(), msg.sender),
             "ERC1155: caller is not token owner or approved"
         );
         tokenIdToOwner[_id] = _to;
@@ -242,49 +230,16 @@ contract ChildTemplates is ERC1155, Ownable {
         address _to,
         uint256[] memory _ids,
         uint256[] memory _amounts,
-        bytes memory _data,
-        uint256 _parentId
-    ) external IsParent(_parentId, _ids) {
-        // parent check only
+        bytes memory _data
+    ) public override {
         for (uint256 i = 0; i < _ids.length; i++) {
             require(
-                tokenIdToOwner[_ids[i]] == _from,
+                tokenIdToOwner[_ids[i]] == _from ||
+                    isApprovedForAll(owner(), msg.sender),
                 "ERC1155: caller is not token owner"
             );
             tokenIdToOwner[_ids[i]] = _to;
         }
         _safeBatchTransferFrom(_from, _to, _ids, _amounts, _data);
-    }
-
-    function _checkParent(
-        uint256 _parentId,
-        uint256[] memory _childIds
-    ) internal returns (bool success) {
-        return
-            _compareArrays(
-                _childIds,
-                ParentTemplates(parentContract).parentChildTokens(_parentId)
-            );
-    }
-
-    function _compareArrays(
-        uint256[] memory _arrayOne,
-        uint256[] memory _arrayTwo
-    ) internal returns (bool success) {
-        if (_arrayOne.length != _arrayTwo.length) {
-            return false;
-        }
-
-        for (uint256 i = 0; i < _arrayOne.length; i++) {
-            _arrayOneMap[_arrayOne[i]] = true;
-        }
-
-        for (uint256 i = 0; i < _arrayTwo.length; i++) {
-            if (!_arrayOneMap[_arrayTwo[i]]) {
-                return false;
-            }
-        }
-
-        return true;
     }
 }

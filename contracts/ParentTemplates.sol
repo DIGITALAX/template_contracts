@@ -64,8 +64,10 @@ contract ParentTemplates is ERC721, Ownable {
         emit ParentTemplateCreated(totalSupply, tokenIdToURI[totalSupply]);
     }
 
-    function updateSvg(uint256 _tokenId, string calldata _svg) public {
-        require(msg.sender == tokenIdToOwner[_tokenId], "Not token owner");
+    function updateSvg(
+        uint256 _tokenId,
+        string calldata _svg
+    ) public onlyOwner {
         string memory imageURI = _templateDataFromSvg(_svg);
         tokenIdToURI[_tokenId] = _formatURI(
             imageURI,
@@ -161,19 +163,21 @@ contract ParentTemplates is ERC721, Ownable {
 
     function burnTemplate(
         uint256 _tokenId,
-        uint256[] calldata _childTokenIds
+        uint256[] calldata _childTokenIds,
+        uint256[] calldata _amounts
     ) public onlyOwner childTokensModifier(_childTokenIds) {
-        _burn(_tokenId);
-        // burn children as well
-        uint256[] memory amounts = new uint[](_childTokenIds.length);
-        for (uint i = 0; i < _childTokenIds.length; i++) {
-            amounts[i] = 1;
+        for (uint256 i = 0; i < _childTokenIds.length; i++) {
+            require(
+                _amounts[i] <=
+                    ChildTemplates(childContract).tokenIdToAmount(
+                        _childTokenIds[i]
+                    ),
+                "Incorrect Child Tokens Amount"
+            );
         }
-        ChildTemplates(childContract).burnBatch(
-            _childTokenIds,
-            amounts,
-            _tokenId
-        );
+        _burn(_tokenId);
+        tokenIdToOwner[totalSupply] = address(0);
+        ChildTemplates(childContract).burnBatch(_childTokenIds, _amounts);
     }
 
     function transferFrom(
@@ -187,77 +191,11 @@ contract ParentTemplates is ERC721, Ownable {
         );
 
         _transfer(from, to, tokenId);
-
         tokenIdToOwner[totalSupply] = to;
-
         uint256[] memory childTokens = parentToChild[tokenId];
         uint256[] memory childAmounts = new uint[](
             parentToChild[tokenId].length
         );
-        for (uint256 i = 0; i < childTokens.length; i++) {
-            childAmounts[i] = ChildTemplates(childContract).tokenIdToAmount(
-                childTokens[i]
-            );
-        }
-
-        ChildTemplates(childContract).safeBatchTransferFrom(
-            from,
-            to,
-            childTokens,
-            childAmounts,
-            ""
-        );
-    }
-
-    function safeTransferFrom(
-        address from,
-        address to,
-        uint256 tokenId
-    ) public virtual override {
-        safeTransferFrom(from, to, tokenId, "");
-        tokenIdToOwner[totalSupply] = to;
-
-        uint256[] memory childTokens = parentToChild[tokenId];
-        uint256[] memory childAmounts = new uint[](
-            parentToChild[tokenId].length
-        );
-        for (uint256 i = 0; i < childTokens.length; i++) {
-            childAmounts[i] = ChildTemplates(childContract).tokenIdToAmount(
-                childTokens[i]
-            );
-        }
-
-        ChildTemplates(childContract).safeBatchTransferFrom(
-            from,
-            to,
-            childTokens,
-            childAmounts,
-            ""
-        );
-    }
-
-    function safeTransferFrom(
-        address from,
-        address to,
-        uint256 tokenId,
-        bytes memory data
-    ) public virtual override {
-        require(
-            _isApprovedOrOwner(_msgSender(), tokenId),
-            "ERC721: caller is not token owner or approved"
-        );
-        _safeTransfer(from, to, tokenId, data);
-        tokenIdToOwner[totalSupply] = to;
-
-        uint256[] memory childTokens = parentToChild[tokenId];
-        uint256[] memory childAmounts = new uint[](
-            parentToChild[tokenId].length
-        );
-        for (uint256 i = 0; i < childTokens.length; i++) {
-            childAmounts[i] = ChildTemplates(childContract).tokenIdToAmount(
-                childTokens[i]
-            );
-        }
 
         ChildTemplates(childContract).safeBatchTransferFrom(
             from,
