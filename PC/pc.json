@@ -1,0 +1,57 @@
+{
+  "tank_top": {
+    "0x01": {
+      "parent": {
+        "name": "aop_tank_top_dpl_0x01",
+        "id": 1
+      },
+      "children": {
+        "ids": [1, 2]
+      }
+    }
+  },
+  "hoodie": {
+    "0x01": {
+      "parent": {
+        "name": "aop_hoodie_dpl_0x01",
+        "id": [7, 8, 9, 10, 11]
+      },
+      "children": {
+        "ids": []
+      }
+    }
+  },
+  "rash_guard": {
+    "0x01": {
+      "parent": {
+        "name": "aop_rash_guard_dpl_0x01",
+        "id": 2
+      },
+      "children": {
+        "ids": [3, 4, 5, 6]
+      }
+    }
+  },
+  "bomber_jacket": {
+    "0x01": {
+      "parent": {
+        "name": "aop_bomber_jacket_dpl_0x01",
+        "id": 4
+      },
+      "children": {
+        "ids": [12, 13, 14, 15, 16, 17]
+      }
+    }
+  },
+  "crew_neck": {
+    "0x01": {
+      "parent": {
+        "name": "aop_crew_neck_dpl_0x01",
+        "id": 5
+      },
+      "children": {
+        "ids": [18, 19, 20, 21]
+      }
+    }
+  }
+}
